@@ -1,0 +1,72 @@
+# Render 블루프린트 — 게이트웨이 + 공통서비스 6종을 한 번에 배포합니다.
+# 사용법: Render 대시보드 → New → Blueprint → 이 저장소 선택 → render.yaml 자동 인식
+# 배포 후 각 서비스의 실제 URL(https://topec-xxx-XXXX.onrender.com)을 확인해
+# Vercel 프론트엔드 환경변수에 입력하세요. (DEPLOY.md 참고)
+#
+# 무료 플랜(free) 기준 — 15분 미사용 시 슬립되며, 첫 요청은 기동 시간(수십 초)이 걸립니다.
+# 실제 운영 전환 시 TOPEC 사내 서버(폐쇄망)로 이관하고 이 파일은 참고용으로만 사용하세요.
+
+services:
+  - type: web
+    name: topec-gateway
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/gateway/Dockerfile
+    dockerContext: ./backend/gateway
+    envVars:
+      - key: LLM_PROVIDER
+        value: anthropic
+      - key: EXTERNAL_MODEL
+        value: claude-sonnet-5
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: INTERNAL_LLM_ENDPOINT
+        value: http://localhost:11434 # 클라우드 데모에는 사내 서빙이 없어 항상 외부 API로 폴백됩니다
+      - key: PORT
+        value: 8100
+
+  - type: web
+    name: topec-document-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/document_service/Dockerfile
+    dockerContext: ./backend/services/document_service
+
+  - type: web
+    name: topec-knowledge-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/knowledge_service/Dockerfile
+    dockerContext: ./backend/services/knowledge_service
+
+  - type: web
+    name: topec-agent-lifecycle-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/agent_lifecycle_service/Dockerfile
+    dockerContext: ./backend/services/agent_lifecycle_service
+
+  - type: web
+    name: topec-observability-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/observability_service/Dockerfile
+    dockerContext: ./backend/services/observability_service
+
+  - type: web
+    name: topec-governance-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/governance_service/Dockerfile
+    dockerContext: ./backend/services/governance_service
+
+  - type: web
+    name: topec-auth-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/auth_service/Dockerfile
+    dockerContext: ./backend/services/auth_service

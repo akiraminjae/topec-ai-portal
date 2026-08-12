@@ -1,0 +1,94 @@
+# TOPEC AI 포털 — 로컬 개발용 docker-compose
+#
+# 구축계획서(슬라이드 5) 5개 레이어를 서비스로 매핑했습니다.
+#   1) 사용자 접점/빌더 스튜디오 → frontend
+#   2) 연동 게이트웨이            → gateway (LLM 하이브리드 라우팅 포함)
+#   3) 공통 서비스 레이어         → document/knowledge/agent-lifecycle/observability/governance/auth
+#   4) 인프라·데이터              → postgres, vector-db, internal-llm(사내 서빙 로컬 대역)
+#
+# 실제 TOPEC 사내 서버(폐쇄망) 배포 시:
+#   - internal-llm 컨테이너는 실제 GPU 서버(vLLM/Ollama 등)로 교체
+#   - postgres/vector-db는 사내 서버의 영구 스토리지로 교체
+#   - 모든 서비스 앞단에 사내 SSO/리버스 프록시 추가 (TODO)
+
+services:
+  # ── 인프라 ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: topec_portal
+      POSTGRES_USER: topec
+      POSTGRES_PASSWORD: change-me-in-prod
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  vector-db:
+    image: chromadb/chroma:latest
+    ports: ["8000:8000"]
+    volumes:
+      - vectordata:/chroma/chroma
+
+  # 사내 서빙(폐쇄망) LLM — 로컬 개발용 예시(Ollama). 실서버에서는 TOPEC GPU 서버로 교체.
+  internal-llm:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes:
+      - ollamadata:/root/.ollama
+
+  # ── 연동 게이트웨이 (LLM 하이브리드 라우팅) ──────────────
+  gateway:
+    build: ./backend/gateway
+    env_file: ./backend/gateway/.env
+    environment:
+      INTERNAL_LLM_ENDPOINT: http://internal-llm:11434
+    ports: ["8100:8100"]
+    depends_on: [internal-llm]
+
+  # ── 공통 서비스 레이어 ────────────────────────────────────
+  document-service:
+    build: ./backend/services/document_service
+    ports: ["8101:8101"]
+
+  knowledge-service:
+    build: ./backend/services/knowledge_service
+    ports: ["8102:8102"]
+    depends_on: [vector-db]
+
+  agent-lifecycle-service:
+    build: ./backend/services/agent_lifecycle_service
+    ports: ["8103:8103"]
+    depends_on: [postgres]
+
+  observability-service:
+    build: ./backend/services/observability_service
+    ports: ["8104:8104"]
+
+  governance-service:
+    build: ./backend/services/governance_service
+    ports: ["8105:8105"]
+    depends_on: [postgres]
+
+  auth-service:
+    build: ./backend/services/auth_service
+    ports: ["8106:8106"]
+
+  # ── 사용자 접점 / 빌더 스튜디오 ───────────────────────────
+  frontend:
+    build: ./frontend
+    environment:
+      GATEWAY_URL: http://gateway:8100
+      DOCUMENT_SERVICE_URL: http://document-service:8101
+      KNOWLEDGE_SERVICE_URL: http://knowledge-service:8102
+      AGENT_LIFECYCLE_SERVICE_URL: http://agent-lifecycle-service:8103
+      OBSERVABILITY_SERVICE_URL: http://observability-service:8104
+      GOVERNANCE_SERVICE_URL: http://governance-service:8105
+      AUTH_SERVICE_URL: http://auth-service:8106
+    ports: ["3000:3000"]
+    depends_on:
+      [gateway, document-service, knowledge-service, agent-lifecycle-service, observability-service, governance-service, auth-service]
+
+volumes:
+  pgdata:
+  vectordata:
+  ollamadata:

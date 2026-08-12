@@ -1,0 +1,17 @@
+# secrets — never commit
+.env
+**/.env
+!.env.example
+
+# node
+node_modules/
+.next/
+frontend/.next/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# os
+.DS_Store
