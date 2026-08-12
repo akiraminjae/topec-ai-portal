@@ -30,6 +30,11 @@ topec-ai-portal/
 로컬 실행이 아니라 실제 접속 가능한 URL로 배포하려면 `DEPLOY.md`를 참고하세요
 (Vercel + Render 무료 플랜 기준 단계별 가이드, `render.yaml` 블루프린트 포함).
 
+## 다른 서버(PC)로 옮기기
+
+이 프로젝트를 통째로 다른 PC나 사내 서버로 옮겨서 운영하려면 `SERVER_MIGRATION.md`를
+참고하세요. PostgreSQL 연동(승인함·연동설정 데이터 영구 저장) 설정 방법을 포함합니다.
+
 ## 로컬 실행 방법
 
 ### 1) 환경변수 설정

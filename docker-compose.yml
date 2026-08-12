@@ -66,12 +66,17 @@ services:
 
   governance-service:
     build: ./backend/services/governance_service
+    environment:
+      DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
     ports: ["8105:8105"]
     depends_on: [postgres]
 
   auth-service:
     build: ./backend/services/auth_service
+    environment:
+      DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
     ports: ["8106:8106"]
+    depends_on: [postgres]
 
   # ── 사용자 접점 / 빌더 스튜디오 ───────────────────────────
   frontend:

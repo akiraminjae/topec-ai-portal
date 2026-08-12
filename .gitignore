@@ -13,5 +13,8 @@ __pycache__/
 *.pyc
 .venv/
 
+# 로컬 SQLite 폴백 DB (DATABASE_URL 미설정 시 생성됨) — 운영은 Postgres 사용
+*.db
+
 # os
 .DS_Store

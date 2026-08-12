@@ -2,17 +2,22 @@
 계정·접근권한 (SSO) — TOPEC AI 포털 공통 서비스 레이어
 SSO 연동, 역할기반 권한통제(RBAC)를 담당하는 공통 서비스
 
-이 파일은 스캐폴드(skeleton)입니다. 실제 비즈니스 로직은 TODO 표시된 부분에
+이 파일은 스캐폴드(skeleton)입니다. 실제 SSO/RBAC 로직은 TODO 표시된 부분에
 개발팀이 채워 넣어야 합니다.
 
 사용자별 연동 설정(이메일 비서 / 일정 관리 에이전트가 쓸 IMAP·캘린더 계정 등)은
-/auth/integrations 하위 엔드포인트로 실제 동작하는 저장소(in-memory)를 제공합니다.
-TODO(개발팀): Postgres 등 영구 저장소로 교체, 값 필드는 암호화해서 저장.
+/auth/integrations 하위 엔드포인트로 실제 동작합니다. 저장소는 PostgreSQL(운영,
+DATABASE_URL 지정 시) 또는 SQLite(로컬 폴백)입니다 — db.py, models.py 참고.
+TODO(개발팀): 값 필드(fields_json)는 암호화해서 저장.
 """
+import json
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+from db import Base, SessionLocal, engine
+from models import Integration
 
 app = FastAPI(title="TOPEC AI Portal - 계정·접근권한 (SSO)")
 
@@ -23,8 +28,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# key: f"{user_id}:{provider}" (provider 예: "email", "calendar")
-_INTEGRATIONS: dict[str, dict] = {}
+Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health")
@@ -47,9 +51,19 @@ async def handle(request: Request):
 @app.get("/auth/integrations")
 async def list_integrations(user_id: str = "u-demo"):
     """현재 로그인 사용자의 연동 설정 목록. 값(fields)은 마스킹해서 반환합니다."""
-    items = [v for k, v in _INTEGRATIONS.items() if k.startswith(f"{user_id}:")]
-    masked = [{**item, "fields": _mask(item["fields"])} for item in items]
-    return {"items": masked}
+    with SessionLocal() as db:
+        rows = db.query(Integration).filter(Integration.user_id == user_id).all()
+        items = [
+            {
+                "user_id": r.user_id,
+                "provider": r.provider,
+                "connected": True,
+                "fields": _mask(json.loads(r.fields_json)),
+                "updated_at": r.updated_at,
+            }
+            for r in rows
+        ]
+    return {"items": items}
 
 
 @app.put("/auth/integrations/{provider}")
@@ -60,24 +74,47 @@ async def upsert_integration(provider: str, request: Request):
     fields = payload.get("fields")
     if not isinstance(fields, dict) or not fields:
         raise HTTPException(status_code=400, detail="fields는 비어있지 않은 객체여야 합니다")
-    key = f"{user_id}:{provider}"
-    item = {
-        "user_id": user_id,
-        "provider": provider,
-        "connected": True,
-        "fields": fields,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    _INTEGRATIONS[key] = item
-    return {**item, "fields": _mask(item["fields"])}
+    now = datetime.now(timezone.utc).isoformat()
+    with SessionLocal() as db:
+        row = (
+            db.query(Integration)
+            .filter(Integration.user_id == user_id, Integration.provider == provider)
+            .first()
+        )
+        if row:
+            row.fields_json = json.dumps(fields, ensure_ascii=False)
+            row.updated_at = now
+        else:
+            row = Integration(
+                user_id=user_id,
+                provider=provider,
+                fields_json=json.dumps(fields, ensure_ascii=False),
+                updated_at=now,
+            )
+            db.add(row)
+        db.commit()
+        db.refresh(row)
+        return {
+            "user_id": row.user_id,
+            "provider": row.provider,
+            "connected": True,
+            "fields": _mask(fields),
+            "updated_at": row.updated_at,
+        }
 
 
 @app.delete("/auth/integrations/{provider}")
 async def delete_integration(provider: str, user_id: str = "u-demo"):
-    key = f"{user_id}:{provider}"
-    if key not in _INTEGRATIONS:
-        raise HTTPException(status_code=404, detail="integration not found")
-    del _INTEGRATIONS[key]
+    with SessionLocal() as db:
+        row = (
+            db.query(Integration)
+            .filter(Integration.user_id == user_id, Integration.provider == provider)
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="integration not found")
+        db.delete(row)
+        db.commit()
     return {"ok": True}
 
 
