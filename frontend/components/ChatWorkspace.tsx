@@ -13,7 +13,7 @@ type ChatMessage = { role: "user" | "assistant"; text: string; route?: string };
 
 const SUGGESTIONS = ["이 계약서의 독소조항을 찾아줘", "Q2 매출 데이터를 요약해줘", "신규 입사자 환영 메일 초안 작성"];
 
-const AGENTS = ["Ara", "재무 리포트", "문서 분석", "이메일 비서", "일정 관리"];
+const AGENTS = ["Ara", "문서 분석", "이메일 비서", "일정 관리"];
 
 const LLM_MODES = [
   { key: "auto", label: "자동 라우팅 (하이브리드)", force: null },
