@@ -6,8 +6,10 @@
 // 하단: 메시지 입력창 — 실제 게이트웨이(/api/gateway/chat)와 연동되어 하이브리드 라우팅 동작
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import PortalSwitcher from "./PortalSwitcher";
 import DocumentPanel from "./DocumentPanel";
+import { authHeaders } from "@/lib/auth";
 
 type ChatMessage = { role: "user" | "assistant"; text: string; route?: string };
 
@@ -22,6 +24,7 @@ const LLM_MODES = [
 ];
 
 export default function ChatWorkspace() {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,13 +43,18 @@ export default function ChatWorkspace() {
     try {
       const res = await fetch("/api/gateway/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           message,
           system: `당신은 TOPEC AI 포털의 "${agent}" 에이전트입니다.`,
+          agent,
           force_route: llmMode.force,
         }),
       });
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
       const data = await res.json();
       const result = data.result || {};
       setMessages((prev) => [

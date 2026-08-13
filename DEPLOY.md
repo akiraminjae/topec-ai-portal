@@ -36,13 +36,14 @@ git push -u origin main
 
 1. Render 대시보드 → **New** → **Blueprint**
 2. 방금 만든 GitHub 저장소 선택 → Render가 저장소 루트의 `render.yaml`을 자동 인식
-3. 7개 서비스(topec-gateway + 공통서비스 6종)가 한 번에 생성됩니다 — **Apply**
+3. 8개 서비스(topec-gateway + 공통서비스 6종 + hwp-parser-service)가 한 번에 생성됩니다 — **Apply**
 4. `topec-gateway` 서비스 → **Environment** 탭에서 다음 값을 입력 (사용하는 공급자 키만 넣으면 됩니다):
    - `ANTHROPIC_API_KEY`
    - `OPENAI_API_KEY`
    - `GOOGLE_API_KEY`
 5. 배포가 끝나면 각 서비스 상단에 실제 URL이 표시됩니다 (예: `https://topec-gateway-xxxx.onrender.com`).
-   **7개 URL을 모두 메모해두세요** — 3단계에서 필요합니다.
+   **7개 URL을 모두 메모해두세요** (hwp-parser-service는 document-service 내부에서만
+   호출되므로 별도로 프론트엔드에 알릴 필요는 없습니다) — 3단계에서 필요합니다.
 
 무료 플랜은 15분 미사용 시 슬립되며, 첫 요청 시 기동에 30초~1분 정도 걸릴 수 있습니다.
 

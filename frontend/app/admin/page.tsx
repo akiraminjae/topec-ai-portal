@@ -4,7 +4,9 @@
 // PDF 슬라이드 9(특화 기술), 10(실행 기능), 16(FDE 컨설팅 프로세스)를 전부 반영.
 // 공통 서비스 6종은 실제 /health로 상태를 조회하고, HITL 승인함은 governance_service의
 // 실제 승인 API(GET/POST /governance/approvals)와 연동되어 승인/반려가 실제로 동작합니다.
-// TODO(개발팀): STATS/GUARDRAILS는 observability_service 실제 지표로 교체
+// 상단 STATS도 agent_lifecycle_service(배포된 에이전트) + observability_service(처리 건수·
+// 응답시간) + governance_service(승인 대기)의 실제 데이터로 채워집니다.
+// TODO(개발팀): GUARDRAILS 토글은 아직 실제 정책 저장소에 연결되지 않은 표시용 UI
 
 import { useEffect, useState } from "react";
 import SurfaceShell from "@/components/SurfaceShell";
@@ -16,13 +18,6 @@ const SERVICES = [
   { key: "observability", name: "관측·모니터링" },
   { key: "governance", name: "거버넌스·감사·가드레일" },
   { key: "auth", name: "계정·접근권한 (SSO)" },
-];
-
-const STATS = [
-  { label: "배포된 에이전트", value: "12" },
-  { label: "오늘 처리 건수", value: "1,284" },
-  { label: "평균 응답시간", value: "1.4초" },
-  { label: "승인 대기(HITL)", value: "3건" },
 ];
 
 const GUARDRAILS = [
@@ -79,6 +74,7 @@ const FDE_STEPS = [
 ];
 
 type Approval = { id: number; status: string; agent_name: string; action: string; requested_by: string };
+type ObsStats = { requests_today: number; avg_latency_ms: number | null };
 
 export default function AdminPage() {
   const [status, setStatus] = useState<Record<string, "checking" | "ok" | "down">>(
@@ -87,6 +83,19 @@ export default function AdminPage() {
   const [gatewayStatus, setGatewayStatus] = useState<"checking" | "ok" | "down">("checking");
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [approvalsError, setApprovalsError] = useState(false);
+  const [agentCount, setAgentCount] = useState<number | null>(null);
+  const [obsStats, setObsStats] = useState<ObsStats | null>(null);
+
+  const pendingApprovals = approvals.filter((a) => a.status === "pending").length;
+  const STATS = [
+    { label: "배포된 에이전트", value: agentCount === null ? "-" : String(agentCount) },
+    { label: "오늘 처리 건수", value: obsStats === null ? "-" : obsStats.requests_today.toLocaleString() },
+    {
+      label: "평균 응답시간",
+      value: obsStats?.avg_latency_ms == null ? "-" : `${(obsStats.avg_latency_ms / 1000).toFixed(1)}초`,
+    },
+    { label: "승인 대기(HITL)", value: `${pendingApprovals}건` },
+  ];
 
   async function loadApprovals() {
     try {
@@ -126,6 +135,16 @@ export default function AdminPage() {
       .then((r) => setGatewayStatus(r.ok ? "ok" : "down"))
       .catch(() => setGatewayStatus("down"));
     loadApprovals();
+
+    fetch("/api/services/agent-lifecycle/agents")
+      .then((r) => r.json())
+      .then((data) => setAgentCount((data.items || []).length))
+      .catch(() => setAgentCount(null));
+
+    fetch("/api/services/observability/observability/stats")
+      .then((r) => r.json())
+      .then((data) => setObsStats({ requests_today: data.requests_today ?? 0, avg_latency_ms: data.avg_latency_ms }))
+      .catch(() => setObsStats(null));
   }, []);
 
   return (

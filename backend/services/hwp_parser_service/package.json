@@ -1,0 +1,15 @@
+{
+  "name": "topec-hwp-parser-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.22.2",
+    "kordoc": "4.7.2",
+    "multer": "2.2.0"
+  }
+}

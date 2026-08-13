@@ -37,6 +37,13 @@ services:
     dockerContext: ./backend/services/document_service
 
   - type: web
+    name: topec-hwp-parser-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/services/hwp_parser_service/Dockerfile
+    dockerContext: ./backend/services/hwp_parser_service
+
+  - type: web
     name: topec-knowledge-service
     runtime: docker
     plan: free

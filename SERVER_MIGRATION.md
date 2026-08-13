@@ -43,9 +43,9 @@
 
 ```bash
 docker compose up --build -d
-docker compose ps        # 8개 컨테이너(postgres, vector-db, internal-llm, gateway,
+docker compose ps        # 9개 컨테이너(postgres, vector-db, internal-llm, gateway,
                           # document/knowledge/agent-lifecycle/observability/governance/
-                          # auth-service, frontend)가 모두 Up 상태인지 확인
+                          # auth-service, hwp-parser-service, frontend)가 모두 Up 상태인지 확인
 ```
 
 - 프론트엔드: `http://<서버IP>:3000`
@@ -53,21 +53,23 @@ docker compose ps        # 8개 컨테이너(postgres, vector-db, internal-llm, 
 
 ## 4. 데이터베이스 확인
 
-승인함(HITL)과 이메일/일정 연동 설정은 이제 `postgres` 컨테이너의 PostgreSQL에
-저장됩니다. 다음으로 실제 저장 여부를 확인할 수 있습니다.
+승인함(HITL)·이메일/일정 연동 설정·문서 추출 결과는 이제 `postgres` 컨테이너의
+PostgreSQL에 저장됩니다. 다음으로 실제 저장 여부를 확인할 수 있습니다.
 
 ```bash
 docker compose exec postgres psql -U topec -d topec_portal -c "\dt"
-# approvals, integrations 테이블이 보이면 정상입니다.
+# approvals, integrations, documents 테이블이 보이면 정상입니다.
 
-docker compose restart governance-service auth-service
-# 재시작 후에도 /governance/approvals, /auth/integrations 데이터가 그대로면 성공.
+docker compose restart governance-service auth-service document-service
+# 재시작 후에도 /governance/approvals, /auth/integrations, /documents 데이터가 그대로면 성공.
 ```
 
-다른 4개 공통 서비스(document/knowledge/agent-lifecycle/observability)는 아직
-비즈니스 로직이 없는 스텁 상태라 DB 연동 대상이 아닙니다 — 개발팀이 실제 기능을
-구현할 때 같은 `postgres` 컨테이너를 재사용하면 됩니다 (각 서비스 코드의
-`db.py`/`models.py` 패턴을 그대로 복사해서 시작하면 빠릅니다).
+`knowledge_service`(RAG)는 PostgreSQL이 아니라 `vector-db`(Chroma) 컨테이너에 문서 청크를
+저장합니다 — `document_service`가 문서를 추출할 때마다 자동으로 색인 요청을 보냅니다
+(`GET /knowledge/search`로 확인 가능). 나머지 2개 공통 서비스(agent-lifecycle/observability)는
+아직 비즈니스 로직이 없는 스텁 상태입니다 — 개발팀이 실제 기능을 구현할 때 DB가 필요하면
+같은 `postgres` 컨테이너를 재사용하면 됩니다 (document_service/governance_service/
+auth_service의 `db.py`/`models.py` 패턴을 그대로 복사해서 시작하면 빠릅니다).
 
 ## 5. 클라우드 데모(Vercel/Render)와의 관계
 

@@ -4,6 +4,7 @@
 #   1) 사용자 접점/빌더 스튜디오 → frontend
 #   2) 연동 게이트웨이            → gateway (LLM 하이브리드 라우팅 포함)
 #   3) 공통 서비스 레이어         → document/knowledge/agent-lifecycle/observability/governance/auth
+#                                  (+ hwp-parser-service: hwp/hwpx 전문 파서, document-service가 위임 호출)
 #   4) 인프라·데이터              → postgres, vector-db, internal-llm(사내 서빙 로컬 대역)
 #
 # 실제 TOPEC 사내 서버(폐쇄망) 배포 시:
@@ -22,19 +23,33 @@ services:
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U topec -d topec_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   vector-db:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.5.0
     ports: ["8000:8000"]
     volumes:
       - vectordata:/chroma/chroma
 
   # 사내 서빙(폐쇄망) LLM — 로컬 개발용 예시(Ollama). 실서버에서는 TOPEC GPU 서버로 교체.
+  # 컨테이너 시작 시 INTERNAL_LLM_MODEL(기본 llama3.1)을 자동으로 pull합니다 — 최초 기동 시
+  # 모델 다운로드(수 GB)로 시간이 걸리며, 이미 받은 모델은 ollamadata 볼륨에 캐시됩니다.
   internal-llm:
     image: ollama/ollama:latest
     ports: ["11434:11434"]
     volumes:
       - ollamadata:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 3
+        ollama pull "${INTERNAL_LLM_MODEL:-llama3.1}" || echo "모델 pull 실패 — 서버는 계속 실행됩니다"
+        wait
 
   # ── 연동 게이트웨이 (LLM 하이브리드 라우팅) ──────────────
   gateway:
@@ -42,13 +57,31 @@ services:
     env_file: ./backend/gateway/.env
     environment:
       INTERNAL_LLM_ENDPOINT: http://internal-llm:11434
+      OBSERVABILITY_SERVICE_URL: http://observability-service:8104
+      AUTH_SERVICE_URL: http://auth-service:8106
     ports: ["8100:8100"]
     depends_on: [internal-llm]
 
   # ── 공통 서비스 레이어 ────────────────────────────────────
   document-service:
     build: ./backend/services/document_service
+    environment:
+      DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
+      KNOWLEDGE_SERVICE_URL: http://knowledge-service:8102
+      HWP_PARSER_URL: http://hwp-parser-service:8107
     ports: ["8101:8101"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      knowledge-service:
+        condition: service_started
+      hwp-parser-service:
+        condition: service_started
+
+  # hwp(3.x/5.x)·hwpx 전문 파서 — Node.js 라이브러리 kordoc 기반 (document_service가 위임)
+  hwp-parser-service:
+    build: ./backend/services/hwp_parser_service
+    ports: ["8107:8107"]
 
   knowledge-service:
     build: ./backend/services/knowledge_service
@@ -57,26 +90,39 @@ services:
 
   agent-lifecycle-service:
     build: ./backend/services/agent_lifecycle_service
+    environment:
+      DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
     ports: ["8103:8103"]
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   observability-service:
     build: ./backend/services/observability_service
+    environment:
+      DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
     ports: ["8104:8104"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   governance-service:
     build: ./backend/services/governance_service
     environment:
       DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
     ports: ["8105:8105"]
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   auth-service:
     build: ./backend/services/auth_service
     environment:
       DATABASE_URL: postgresql://topec:change-me-in-prod@postgres:5432/topec_portal
     ports: ["8106:8106"]
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # ── 사용자 접점 / 빌더 스튜디오 ───────────────────────────
   frontend:

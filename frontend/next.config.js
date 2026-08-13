@@ -1,24 +1,9 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  async rewrites() {
-    const gatewayUrl = process.env.GATEWAY_URL || "http://localhost:8100";
-    // 공통 서비스 6종 — Admin 페이지의 상태 대시보드에서 사용 (docker-compose 서비스명/포트와 매칭)
-    const services = {
-      document: process.env.DOCUMENT_SERVICE_URL || "http://localhost:8101",
-      knowledge: process.env.KNOWLEDGE_SERVICE_URL || "http://localhost:8102",
-      "agent-lifecycle": process.env.AGENT_LIFECYCLE_SERVICE_URL || "http://localhost:8103",
-      observability: process.env.OBSERVABILITY_SERVICE_URL || "http://localhost:8104",
-      governance: process.env.GOVERNANCE_SERVICE_URL || "http://localhost:8105",
-      auth: process.env.AUTH_SERVICE_URL || "http://localhost:8106",
-    };
-    return [
-      { source: "/api/gateway/:path*", destination: `${gatewayUrl}/:path*` },
-      ...Object.entries(services).map(([name, url]) => ({
-        source: `/api/services/${name}/:path*`,
-        destination: `${url}/:path*`,
-      })),
-    ];
-  },
-};
+// 게이트웨이/공통 서비스 프록시는 next.config.js의 rewrites()가 아니라
+// app/api/gateway/[...path]/route.ts, app/api/services/[service]/[...path]/route.ts
+// (Route Handler)로 구현되어 있습니다. rewrites()는 next build 시점에 destination을
+// 고정해버려 docker-compose 런타임 환경변수를 반영하지 못하는 문제가 있었습니다
+// (자세한 설명은 frontend/lib/proxy.ts 상단 주석 참고).
+const nextConfig = {};
 
 module.exports = nextConfig;

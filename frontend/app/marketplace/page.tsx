@@ -1,18 +1,19 @@
 "use client";
 
-// 마켓플레이스 — 승인된 에이전트 공유 + PDF Use Case 섹션(슬라이드 18~38) 전체를
-// "설치 가능한 템플릿 라이브러리"로 제공합니다.
-// TODO(개발팀): governance_service 승인 이력과 연동해 "승인됨" 상태의 자체 제작 에이전트도 함께 노출
+// 마켓플레이스 — agent_lifecycle_service에 게시(published)된 사내 제작 에이전트 실데이터 +
+// PDF Use Case 섹션(슬라이드 18~38)을 "설치 가능한 템플릿 라이브러리"로 함께 제공합니다.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SurfaceShell from "@/components/SurfaceShell";
 import { CATEGORIES, USE_CASES, UseCase } from "@/lib/usecases";
 
-const MOCK_SHARED = [
-  { name: "문서 요약 에이전트", from: "총무팀", installs: 42 },
-  { name: "예산 집행 조회 에이전트", from: "재무팀", installs: 17 },
-  { name: "법령·지침 질의응답 에이전트", from: "총무팀", installs: 63 },
-];
+type PublishedAgent = {
+  agent_id: string;
+  name: string;
+  description: string;
+  owner: string;
+  version: number;
+};
 
 const CATEGORY_COLOR: Record<UseCase["category"], string> = {
   공공: "bg-steel/10 text-steel",
@@ -24,29 +25,48 @@ export default function MarketplacePage() {
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("전체");
   const [openId, setOpenId] = useState<string | null>(null);
   const [installed, setInstalled] = useState<Set<string>>(new Set());
+  const [agents, setAgents] = useState<PublishedAgent[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
 
   const filtered = useMemo(() => (cat === "전체" ? USE_CASES : USE_CASES.filter((u) => u.category === cat)), [cat]);
 
+  useEffect(() => {
+    fetch("/api/services/agent-lifecycle/agents?status=published")
+      .then((res) => res.json())
+      .then((data) => setAgents(data.items || []))
+      .catch(() => setAgents([]))
+      .finally(() => setAgentsLoading(false));
+  }, []);
+
   return (
-    <SurfaceShell title="Marketplace" subtitle="승인된 AI 에이전트와 도입 가능한 Use Case 템플릿을 전사에 공유합니다.">
-      {/* 사내 제작·승인된 에이전트 */}
+    <SurfaceShell title="Marketplace" subtitle="게시된 AI 에이전트와 도입 가능한 Use Case 템플릿을 전사에 공유합니다.">
+      {/* 사내 제작·게시된 에이전트 — Studio에서 만들어 "게시하기"를 누르면 여기 노출됩니다 */}
       <div className="mb-10">
-        <div className="mb-3 text-sm font-bold text-navy">사내 제작 에이전트 (승인됨)</div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {MOCK_SHARED.map((a) => (
-            <div key={a.name} className="flex items-center justify-between rounded-2xl bg-white p-5 shadow-sm">
-              <div>
-                <div className="font-semibold text-navy">{a.name}</div>
-                <div className="text-xs text-slate-400">
-                  제작: {a.from} · {a.installs}개 부서 사용 중
+        <div className="mb-3 text-sm font-bold text-navy">사내 제작 에이전트 (게시됨)</div>
+        {agentsLoading ? (
+          <div className="text-xs text-slate-400">불러오는 중...</div>
+        ) : agents.length === 0 ? (
+          <div className="rounded-2xl bg-white p-5 text-xs text-slate-400 shadow-sm">
+            아직 게시된 에이전트가 없습니다. Studio에서 에이전트를 만들고 "게시하기"를 눌러보세요.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {agents.map((a) => (
+              <div key={a.agent_id} className="flex items-center justify-between rounded-2xl bg-white p-5 shadow-sm">
+                <div>
+                  <div className="font-semibold text-navy">{a.name}</div>
+                  <div className="text-xs text-slate-400">
+                    제작: {a.owner || "익명"} · v{a.version}
+                  </div>
+                  {a.description && <div className="mt-0.5 text-xs text-slate-500">{a.description}</div>}
                 </div>
+                <button className="rounded-full bg-teal px-4 py-2 text-xs font-semibold text-navyDark">
+                  내 포털에 추가
+                </button>
               </div>
-              <button className="rounded-full bg-teal px-4 py-2 text-xs font-semibold text-navyDark">
-                내 포털에 추가
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Use Case 템플릿 라이브러리 */}

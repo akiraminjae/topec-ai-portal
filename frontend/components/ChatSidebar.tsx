@@ -6,7 +6,9 @@
 // TODO(개발팀): agent_lifecycle_service, observability_service 등과 연동해 서버 저장으로 교체
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AuthUser, authHeaders, clearAuth, getToken, getUser } from "@/lib/auth";
 
 type Agent = { icon: string; name: string; href: string | null };
 type Chat = { id: string; title: string; projectId: string | null };
@@ -44,18 +46,35 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 }
 
 export default function ChatSidebar() {
+  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS);
   const [chats, setChats] = useState<Chat[]>(DEFAULT_CHATS);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [moveSubmenu, setMoveSubmenu] = useState<string | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [hydrated, setHydrated] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     setAgents(loadFromStorage(AGENTS_KEY, DEFAULT_AGENTS));
     setChats(loadFromStorage(CHATS_KEY, DEFAULT_CHATS));
     setHydrated(true);
-  }, []);
+
+    if (!getToken()) {
+      router.push("/login");
+      return;
+    }
+    setUser(getUser());
+  }, [router]);
+
+  async function logout() {
+    try {
+      await fetch("/api/services/auth/auth/logout", { method: "POST", headers: authHeaders() });
+    } finally {
+      clearAuth();
+      router.push("/login");
+    }
+  }
 
   useEffect(() => {
     if (hydrated) window.localStorage.setItem(AGENTS_KEY, JSON.stringify(agents));
@@ -244,12 +263,17 @@ export default function ChatSidebar() {
 
       <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-3">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
-          김
+          {(user?.name || user?.email || "?").slice(0, 1)}
         </span>
-        <div className="text-xs">
-          <div className="font-semibold text-navy">김민재</div>
-          <div className="text-slate-400">관리자</div>
+        <div className="min-w-0 flex-1 text-xs">
+          <div className="truncate font-semibold text-navy">{user?.name || user?.email || "로그인 필요"}</div>
+          <div className="truncate text-slate-400">{user?.role === "admin" ? "관리자" : user?.email || ""}</div>
         </div>
+        {user && (
+          <button onClick={logout} title="로그아웃" className="shrink-0 text-slate-300 hover:text-navy">
+            ⎋
+          </button>
+        )}
       </div>
     </aside>
   );

@@ -14,7 +14,7 @@ topec-ai-portal/
 ├── frontend/                    # Next.js — 사용자 접점 + 빌더 스튜디오
 ├── backend/
 │   ├── gateway/                 # MCP/API 게이트웨이 + LLM 하이브리드 라우팅
-│   └── services/                # 공통 서비스 레이어 (6개 독립 FastAPI 서비스)
+│   └── services/                # 공통 서비스 레이어 (6개 독립 FastAPI 서비스 + hwp_parser_service)
 │       ├── document_service/
 │       ├── knowledge_service/
 │       ├── agent_lifecycle_service/
